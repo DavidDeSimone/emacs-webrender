@@ -5,6 +5,7 @@ use libc::{c_void, intptr_t};
 
 use crate::{
     remacs_sys::EmacsInt,
+    remacs_sys::{Aligned_Lisp_Subr, Lisp_Subr},
     remacs_sys::{Qnil, Qt, VALMASK},
 };
 
@@ -105,4 +106,42 @@ impl<T> ExternalPtr<T> {
     pub const fn new(p: *mut T) -> Self {
         Self(p)
     }
+}
+
+pub type LispSubrRef = ExternalPtr<Aligned_Lisp_Subr>;
+impl LispSubrRef {
+    pub fn as_mut(self) -> *mut Aligned_Lisp_Subr {
+        self.0
+    }
+}
+unsafe impl Sync for LispSubrRef {}
+
+macro_rules! export_lisp_fns {
+    ($($(#[$($meta:meta),*])* $f:ident),+) => {
+	pub fn rust_init_syms() {
+	    #[allow(unused_unsafe)] // just in case the block is empty
+	    unsafe {
+		$(
+		    $(#[$($meta),*])* crate::lisp::defsubr(concat_idents!(S, $f).as_mut());
+		)+
+	    }
+	}
+    }
+}
+
+#[allow(unused_macros)]
+macro_rules! protect_statics_from_GC {
+    ($($f:ident),+) => {
+	pub fn rust_static_syms() {
+	    unsafe {
+		$(
+		    crate::remacs_sys::staticpro(&$f as *const LispObject as *mut LispObject);
+		)+
+	    }
+	}
+    }
+}
+
+extern "C" {
+    pub fn defsubr(sname: *mut Aligned_Lisp_Subr);
 }

@@ -1,5 +1,5 @@
-use remacs_macros::lisp_fn;
 use lazy_static::lazy_static;
+use remacs_macros::lisp_fn;
 
 #[lisp_fn]
 pub fn eptn() -> crate::lisp::LispObject {

@@ -15,7 +15,7 @@
 //! - `USE_LSB_TAG`
 //! - `BoolBF`
 
-use libc::{self, c_char, c_void, ptrdiff_t, c_int};
+use libc::{self, c_char, c_int, c_void, ptrdiff_t};
 use std::mem;
 
 use libc::timespec;
@@ -131,6 +131,7 @@ pub const WAIT_READING_MAX: i64 = i64::max_value();
 //
 // Based on http://stackoverflow.com/a/28116557/509706
 unsafe impl Sync for Lisp_Subr {}
+unsafe impl Sync for Aligned_Lisp_Subr {}
 
 pub type Lisp_Buffer = buffer;
 pub type Lisp_Font_Object = font;

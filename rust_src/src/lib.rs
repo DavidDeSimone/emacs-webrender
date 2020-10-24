@@ -19,9 +19,9 @@
 extern crate errno;
 extern crate lazy_static;
 
-extern crate libc;
-extern crate field_offset;
 extern crate core;
+extern crate field_offset;
+extern crate libc;
 
 // Needed for linking.
 extern crate remacs_lib;
@@ -30,6 +30,8 @@ extern crate remacs_macros;
 mod remacs_sys;
 #[macro_use]
 mod lisp;
+
+mod example;
 
 #[cfg(not(test))]
 include!(concat!(env!("OUT_DIR"), "/c_exports.rs"));

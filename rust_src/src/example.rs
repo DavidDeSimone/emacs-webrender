@@ -2,7 +2,7 @@ use lazy_static::lazy_static;
 use remacs_macros::lisp_fn;
 
 #[lisp_fn]
-pub fn eptn() -> crate::lisp::LispObject {
+pub fn eptn(t: crate::lisp::LispObject) -> crate::lisp::LispObject {
     crate::lisp::LispObject::from(true)
 }
 

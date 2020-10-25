@@ -33,6 +33,11 @@ include!("../generated/globals.rs");
 pub const VAL_MAX: EmacsInt = (EMACS_INT_MAX >> (GCTYPEBITS - 1));
 pub const VALMASK: EmacsInt = [VAL_MAX, -(1 << GCTYPEBITS)][USE_LSB_TAG as usize];
 
+extern "C" {
+    #[no_mangle]
+    pub fn pure_alloc(t: libc::size_t, i: libc::c_int) -> *mut libc::c_void;
+}
+
 // These signal an error, therefore are marked as non-returning.
 extern "C" {
     pub fn circular_list(tail: Lisp_Object) -> !;

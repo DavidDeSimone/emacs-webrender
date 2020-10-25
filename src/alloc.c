@@ -576,7 +576,7 @@ Lisp_Object const *staticvec[NSTATICS]
 
 int staticidx;
 
-static void *pure_alloc (size_t, int);
+void *pure_alloc (size_t, int);
 
 /* Return PTR rounded up to the next multiple of ALIGNMENT.  */
 
@@ -5208,7 +5208,7 @@ valid_lisp_object_p (Lisp_Object obj)
    merely an expedient to let Emacs warn that pure space was exhausted
    and that Emacs should be rebuilt with a larger pure space.  */
 
-static void *
+void *
 pure_alloc (size_t size, int type)
 {
   void *result;

@@ -1,4 +1,4 @@
-#![recursion_limit = "128"]
+#![recursion_limit = "256"]
 
 extern crate lazy_static;
 extern crate proc_macro;
@@ -126,6 +126,11 @@ pub fn lisp_fn(attr_ts: TokenStream, fn_ts: TokenStream) -> TokenStream {
             crate::lisp::LispObject::from(ret)
         }
 
+	extern "C" {
+	    #[no_mangle]
+	    fn pure_alloc(t: libc::size_t, i: libc::c_int) -> *mut libc::c_void;
+	}
+
         lazy_static! {
             pub static ref #sname: crate::lisp::LispSubrRef = {
                 let mut subr = crate::remacs_sys::Aligned_Lisp_Subr::default();
@@ -148,8 +153,9 @@ pub fn lisp_fn(attr_ts: TokenStream, fn_ts: TokenStream) -> TokenStream {
 
                 unsafe {
                     let ptr =
-                        crate::remacs_sys::xmalloc(
-                            6 * std::mem::size_of::<crate::remacs_sys::Aligned_Lisp_Subr>()
+                        pure_alloc(
+                            std::mem::size_of::<crate::remacs_sys::Aligned_Lisp_Subr>(),
+			    crate::remacs_sys::Lisp_Type::Lisp_Vectorlike as libc::c_int
                         ) as *mut crate::remacs_sys::Aligned_Lisp_Subr;
                     std::ptr::copy_nonoverlapping(&subr, ptr, 1);
                     crate::lisp::ExternalPtr::new(ptr)

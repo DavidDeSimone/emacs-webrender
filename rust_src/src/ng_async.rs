@@ -17,8 +17,10 @@ use std::{
     ffi::CString,
     fs::File,
     io::{Read, Write},
-    os::unix::io::{FromRawFd, IntoRawFd},
 };
+
+#[cfg(not(target_os = "windows"))]
+use std::os::unix::io::{FromRawFd, IntoRawFd};
 
 #[repr(u32)]
 enum PIPE_PROCESS {
@@ -277,6 +279,7 @@ impl EmacsPipe {
     // to enter in memory addresses for deference. This will also eliminate
     // the issue of 'partial reads' if an address crosses the arbitrary maximum
     // read value of a lisp data pipe (which is 4096 bytes as of this commit)
+    #[cfg(not(target_os = "windows"))]
     pub fn message_lisp<T: PipeData>(
         &mut self,
         sender: &Sender<String>,
@@ -291,6 +294,7 @@ impl EmacsPipe {
         Ok(())
     }
 
+    #[cfg(not(target_os = "windows"))]
     fn internal_write(&mut self, bytes: &[u8]) -> std::io::Result<()> {
         let mut f = unsafe { File::from_raw_fd(self.out_subp) };
         f.write(bytes)?;
@@ -298,6 +302,7 @@ impl EmacsPipe {
         Ok(())
     }
 
+    #[cfg(not(target_os = "windows"))]
     pub fn write_ptr<T: PipeData>(&mut self, ptr: *mut T) -> std::io::Result<()> {
         let bin = ptr as *mut _ as usize;
         self.internal_write(&bin.to_be_bytes())
@@ -305,10 +310,12 @@ impl EmacsPipe {
 
     // Called from the lisp thread, used to enqueue a message for the
     // rust worker to execute.
+    #[cfg(not(target_os = "windows"))]
     pub fn message_rust_worker<T: PipeData>(&mut self, content: T) -> std::io::Result<()> {
         self.write_ptr(Box::into_raw(Box::new(content)))
     }
 
+    #[cfg(not(target_os = "windows"))]
     pub fn read_next_ptr(&self) -> std::io::Result<usize> {
         let mut f = unsafe { File::from_raw_fd(self.in_fd) };
         let mut buffer = [0; ptr_size()];
@@ -328,11 +335,13 @@ impl EmacsPipe {
 
     // Used by the rust worker to receive incoming data. Messages sent from
     // calls to 'message_rust_worker' are recieved by read_pend_message
+    #[cfg(not(target_os = "windows"))]
     pub fn read_pend_message<T: PipeData>(&self) -> std::io::Result<T> {
         self.read_next_ptr()
             .map(|v| unsafe { *Box::from_raw(v as *mut T) })
     }
 
+    #[cfg(not(target_os = "windows"))]
     pub fn close_stream(&mut self) -> std::io::Result<()> {
         self.internal_write(&nullptr().to_be_bytes())
     }
@@ -346,6 +355,7 @@ fn eprint_if_unexpected_error(err: std::io::Error) {
     }
 }
 
+#[cfg(not(target_os = "windows"))]
 pub fn rust_worker<
     INPUT: Send + PipeData,
     OUTPUT: Send + PipeData,
@@ -375,6 +385,7 @@ pub fn rust_worker<
     proc
 }
 
+#[cfg(not(target_os = "windows"))]
 fn make_return_value(ptrval: usize, option: PipeDataOption) -> LispObject {
     match option {
         PipeDataOption::STRING => {
@@ -396,6 +407,7 @@ fn make_return_value(ptrval: usize, option: PipeDataOption) -> LispObject {
 /// as someone is writing to this pipe without knowing
 /// how the data transfer functionality works. See below
 /// comment.
+#[cfg(not(target_os = "windows"))]
 #[lisp_fn]
 pub fn async_handler(proc: LispObject, data: LispStringRef) -> bool {
     let plist = unsafe { Fprocess_plist(proc) };
@@ -433,16 +445,19 @@ pub fn async_handler(proc: LispObject, data: LispStringRef) -> bool {
     true
 }
 
+#[cfg(not(target_os = "windows"))]
 #[async_stream]
 pub async fn async_echo(s: String) -> String {
     s
 }
 
+#[cfg(not(target_os = "windows"))]
 #[async_stream]
 pub async fn async_data_echo(e: UserData) -> UserData {
     e
 }
 
+#[cfg(not(target_os = "windows"))]
 fn internal_send_message(
     pipe: &mut EmacsPipe,
     message: LispObject,
@@ -471,6 +486,7 @@ fn internal_send_message(
     }
 }
 
+#[cfg(not(target_os = "windows"))]
 #[lisp_fn]
 pub fn async_send_message(proc: LispObject, message: LispObject) -> bool {
     let mut pipe = unsafe { EmacsPipe::with_process(proc) };
@@ -486,6 +502,7 @@ pub fn async_send_message(proc: LispObject, message: LispObject) -> bool {
     }
 }
 
+#[cfg(not(target_os = "windows"))]
 #[lisp_fn]
 pub fn async_close_stream(proc: LispObject) -> bool {
     let mut pipe = unsafe { EmacsPipe::with_process(proc) };

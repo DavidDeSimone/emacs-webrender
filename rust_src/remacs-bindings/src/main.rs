@@ -230,8 +230,12 @@ fn run_bindgen(path: &str) {
             builder = builder.clang_args(processed_args);
             if cfg!(target_os = "windows") {
                 builder = builder.clang_arg("-I../nt/inc");
+                builder = builder.clang_args(&[
+                    "--target=x86_64-pc-windows-gnu",
+                    ]);
+                builder = builder.clang_arg("-I../lwlib");
                 builder =
-                    builder.clang_arg("-Ic:\\Program Files\\LLVM\\lib\\clang\\6.0.0\\include");
+                    builder.clang_arg("-IC:\\msys64\\mingw64\\lib\\clang\\11.0.0\\include");
             }
 
             builder = builder
@@ -242,6 +246,9 @@ fn run_bindgen(path: &str) {
                 .derive_default(true)
                 .ctypes_prefix("::libc")
                 .no_copy("wr_output")
+                //.no_default(" _IMAGE_LINENUMBER")
+                //.no_debug(" _IMAGE_LINENUMBER")
+                //need typedef for QOS_HDR
                 // we define these ourselves, for various reasons
                 .blacklist_item("Lisp_Object")
                 .blacklist_item("emacs_globals")

@@ -29,6 +29,16 @@ type Lisp_Object = LispObject;
 include!("../../../generated/bindings.rs");
 include!("../../../generated/globals.rs");
 
+#[cfg(target_os = "windows")]
+type QOS_OBJECT_HDR  = _QOS_OBJECT_HDR;
+
+impl std::fmt::Debug for _IMAGE_LINENUMBER__bindgen_ty_1 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("IMAGE_LINENUMBER").finish()
+    }
+
+}
+
 pub const VAL_MAX: EmacsInt = (EMACS_INT_MAX >> (GCTYPEBITS - 1));
 pub const VALMASK: EmacsInt = [VAL_MAX, -(1 << GCTYPEBITS)][USE_LSB_TAG as usize];
 
@@ -117,7 +127,7 @@ extern "C" {
     pub fn filemode_string(f: LispObject) -> LispObject;
 
     pub fn unchain_both(b: *mut Lisp_Buffer, ov: LispObject);
-    pub fn emacs_get_tty_pgrp(p: *mut Lisp_Process) -> libc::pid_t;
+    pub fn emacs_get_tty_pgrp(p: *mut Lisp_Process) -> pid_t;
     pub fn update_buffer_properties(start: ptrdiff_t, end: ptrdiff_t);
     pub fn set_window_hscroll(w: *mut Lisp_Window, hscroll: EMACS_INT) -> Lisp_Object;
     pub fn scroll_command(n: Lisp_Object, direction: libc::c_int);

@@ -1,3 +1,4 @@
+#[cfg(not(target_os = "windows"))]
 use crate::ng_async::{EmacsPipe, PipeDataOption, UserData, to_owned_userdata};
 use lisp::lisp::LispObject;
 use lisp::list::{LispCons, LispConsCircularChecks, LispConsEndChecks};
@@ -71,6 +72,7 @@ impl Default for JSONConfiguration {
 /// returned from the process via stdout. The handler should take two
 /// arguments, the pipe process and the data. Data will be returned as
 /// a 'user-ptr', which should be passed to lsp-handler for further processing.
+#[cfg(not(target_os = "windows"))]
 #[lisp_fn]
 pub fn make_lsp_connection(
     command: LispObject,
@@ -110,6 +112,7 @@ pub fn make_lsp_connection(
 /// Process the result of a lsp-server invoked via make-lsp-connection,
 /// and convert it to a lisp object. Data should be a USER-PTR object
 /// that was provided by the lsp-servers handler.
+#[cfg(not(target_os = "windows"))]
 #[lisp_fn]
 pub fn lsp_handler(proc: LispObject, data: LispObject) -> LispObject {
     let user_data: UserData = to_owned_userdata(data);
@@ -148,6 +151,7 @@ fn get_process_json_config(proc: LispObject) -> JSONConfiguration {
     }
 }
 
+#[cfg(not(target_os = "windows"))]
 #[lisp_fn(min = "1")]
 pub fn lsp_json_config(args: &[LispObject]) -> bool {
     let proc = args[0];
@@ -582,6 +586,7 @@ pub(crate) fn ser(o: LispObject) -> Result<String> {
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("{:?}", e)))
 }
 
+#[cfg(not(target_os = "windows"))]
 #[lisp_fn]
 pub fn lsp_async_send_request(proc: LispObject, method: LispObject, params: LispObject) -> bool {
     let mut emacs_pipe = unsafe { EmacsPipe::with_process(proc) };
@@ -596,6 +601,7 @@ pub fn lsp_async_send_request(proc: LispObject, method: LispObject, params: Lisp
     true
 }
 
+#[cfg(not(target_os = "windows"))]
 pub fn async_create_process(program: String, args: Vec<String>, pipe: EmacsPipe) -> Result<()> {
     let process: Child = Command::new(program)
         .args(args)

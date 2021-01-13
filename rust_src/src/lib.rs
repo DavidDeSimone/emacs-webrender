@@ -29,7 +29,6 @@ extern crate libc;
 #[macro_use]
 extern crate lisp;
 extern crate lisp_macros;
-extern crate remacs_lib;
 
 extern crate futures;
 extern crate lsp_server;

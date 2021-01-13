@@ -693,11 +693,13 @@ $(DEFINITIONS_FILE) $(BINDINGS_FILE) $(GLOBALS_FILE): $(filter-out ./macuvs.h,$(
 cargo_manifest=$(rust_srcdir)/Cargo.toml
 LIBEMACSNG_ARCHIVE=$(rust_srcdir)/target/$(CARGO_BUILD_DIR)/$(EMACSNGLIB_NAME)
 $(LIBEMACSNG_ARCHIVE): globals.h $(rust_srcdir)/src/** $(rust_srcdir)/crates/lisp/src/** $(rust_srcdir)/crates/lisp_util/** $(rust_srcdir)/crates/lisp_macros/** $(rust_srcdir)/Cargo.* $(libsrc)/hashdir/target/$(CARGO_BUILD_DIR)/hashdir$(EXEEXT) $(DEFINITIONS_FILE) $(GLOBALS_FILE) $(BINDINGS_FILE)
+	mkdir -p $(rust_srcdir)/target/$(CARGO_BUILD_DIR)/
 	touch $@
 	RUSTFLAGS="$(RUSTFLAGS)" \
 	EMACS_CFLAGS="$(EMACS_CFLAGS)" \
 	SRC_HASH="$(shell EMACS_CFLAGS="-I../rust_src $(EMACS_CFLAGS)" ../lib-src/hashdir/target/$(CARGO_BUILD_DIR)/hashdir)" \
 	$(CARGO_BUILD) $(CARGO_FLAGS) --manifest-path $(cargo_manifest)
+	cp $(LIBEMACSNG_ARCHIVE) .
 
 clippy: $(DEFINITIONS_FILE) $(BINDINGS_FILE) $(GLOBALS_FILE)
 	RUSTFLAGS="$(RUSTFLAGS)" \

@@ -5662,9 +5662,10 @@ case "${opsys}" in
 esac
 
 if test "${HAVE_W32}" = "yes"; then
-    REMACSLIB_NAME="remacs_lib.lib"
-    EMACSNGLIB_NAME="libemacsng.lib"
+    REMACSLIB_NAME="remacs_lib.dll"
+    EMACSNGLIB_NAME="emacsng.dll"
     RUST_DEPS="$RUST_DEPS -lws2_32 -luserenv"
+    REMACSLIB_CFLAGS="-DEMACS_EXTERN_INLINE"
 
     # Windows fails linking in the 'cargo test' stage, skip for now.
     CARGO_TEST="true"

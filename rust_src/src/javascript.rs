@@ -76,7 +76,12 @@ struct EmacsMainJsRuntime {
     /// it may be sometimes references to refer to certain variables
     /// not stored in EmacsJsOptions.
     program_state: Option<Arc<deno::program_state::ProgramState>>,
+    /// Denotes if we are within a toplevel module evaluation. If true,
+    /// if there is a unhandled toplevel promise rejection, the Deno
+    /// runtime will be required to reset.
     within_toplevel: bool,
+    /// If a tick of the JS event loop has been scheduled and is pending.
+    /// We only run the event loop when there are pending callbacks/promises
     tick_scheduled: bool,
 }
 
@@ -327,7 +332,9 @@ macro_rules! unique_module_import {
             .duration_since(std::time::SystemTime::UNIX_EPOCH)
             .unwrap()
             .as_secs();
-        format!("import '{}#{}{}';", $filename, counter, time)
+        let import_name = format!("{}#{}{}", $filename, counter, time);
+        let import_stmt = format!("import '{}'", import_name);
+        (import_stmt, import_name)
     }};
 }
 
@@ -958,7 +965,7 @@ pub fn eval_js(args: &[LispObject]) -> LispObject {
         && args[1] == lisp::remacs_sys::QCtypescript
         && args[2] == lisp::remacs_sys::Qt;
 
-    run_module(&name, Some(string), &ops, is_typescript)
+    run_module(&name, Some(string), &ops, is_typescript, None)
 }
 
 /// Reads and evaluates FILENAME as a JavaScript module on
@@ -989,9 +996,15 @@ pub fn eval_js_file(args: &[LispObject]) -> LispObject {
 
     // This is a hack to allow for our behavior of
     // executing a module multiple times.
-    let import = unique_module_import!(module);
+    let (import, import_name) = unique_module_import!(module);
     module = unique_module!("./$import${}{}.ts");
-    run_module(&module, Some(import), &ops, is_typescript)
+    run_module(
+        &module,
+        Some(import),
+        &ops,
+        is_typescript,
+        Some(&import_name),
+    )
 }
 
 fn get_buffer_contents(mut buffer: LispObject) -> LispObject {
@@ -1111,7 +1124,7 @@ pub fn js_initialize(args: &[LispObject]) -> LispObject {
     let ops = permissions_from_args(args);
     EmacsMainJsRuntime::set_options(ops.clone());
     EmacsMainJsRuntime::enter_toplevel_module();
-    run_module("init.js", Some("".to_string()), &ops, false)
+    run_module("init.js", Some("".to_string()), &ops, false, None)
 }
 
 /// Destroys the current JavaScript environment. The JavaScript environment will be
@@ -1398,6 +1411,7 @@ fn init_worker(filepath: &str, js_options: &EmacsJsOptions) -> Result<()> {
                 let obj = v8::Object::new(scope);
                 global.set(scope, name.into(), obj.into());
             }
+            // @TODO(DDS) this can be refactored into a macro
             {
                 let name = v8::String::new(scope, "lisp_invoke").unwrap();
                 let func = v8::Function::new(scope, lisp_callback).unwrap();
@@ -1478,6 +1492,7 @@ fn run_module_inner(
     additional_js: Option<String>,
     js_options: &EmacsJsOptions,
     as_typescript: bool,
+    true_filename: Option<&str>,
 ) -> Result<LispObject> {
     init_once()?;
     init_worker(filepath, js_options)?;
@@ -1511,6 +1526,49 @@ fn run_module_inner(
         w.execute_module(&main_module)
             .await
             .map_err(|e| into_ioerr(e))?;
+
+        // (DDS) This is basic cleanup code for the module we just inserted.
+        // Since we have appended a token to this module, it will not
+        // be used again, so it's useless to hold it in RAM. Instead,
+        // we just remove it. However, if something goes wrong with this
+        // we don't want to crash the editor via a panic.
+        // Without this code, we would leak the size of source code
+        // evaluated.
+        // NOTE: Deno's usage of v8 causes them to hold on to some memory of this
+        // module. Deno is working on it, however without this code, it would be
+        // much worse. Likely, this will be able to changed in a future Deno
+        // version.
+        {
+            let program = EmacsMainJsRuntime::get_program_state();
+            // (DDS) This is a little big of a hack, deno doesn't expose
+            // a function to remove a fake file from the cache.
+            let url = main_module.as_url().to_owned();
+            let empty_file = deno::file_fetcher::File {
+                local: url.to_file_path().unwrap(),
+                specifier: deno_core::ModuleSpecifier::from(url),
+                maybe_types: None,
+                media_type: deno::media_type::MediaType::JavaScript,
+                source: "".to_string(),
+            };
+            let _ = program.file_fetcher.insert_cached(empty_file);
+            let mod_clone = program.modules.clone();
+            let mutex = mod_clone.lock();
+            if let Ok(mut modules) = mutex {
+                let _ = modules.remove(&main_module);
+                if let Some(fname) = true_filename {
+                    let normalized = std::env::current_dir()?.join(fname);
+                    let normalized = deno_core::normalize_path(std::path::Path::new(&normalized));
+                    let mut module_name = "file://".to_string();
+                    if let Some(final_name) = normalized.as_path().to_str() {
+                        module_name.push_str(final_name);
+                        let module =
+                            deno_core::ModuleSpecifier::resolve_import(&module_name, fname)
+                                .map_err(|e| into_ioerr(e))?;
+                        let _ = modules.remove(&module);
+                    }
+                }
+            }
+        }
         Ok(())
     })?;
 
@@ -1518,18 +1576,32 @@ fn run_module_inner(
     Ok(lisp::remacs_sys::Qnil)
 }
 
+/// filepath is a unique path to your module, in the form /path/to/file#UNIQUE_ID where
+/// UNIQUE_ID is a number. filepath can be relative or absolute
+/// additional_js will be executed as a module within the context of your filepath
+/// js_options
+/// as_typescripe is true to evaluate this input as typescript. False for JavaScript
+/// true filepath is similar to filepath, except with #UNIQUE_ID removed.
+/// Not needed for anonymous evaluations.
 fn run_module(
     filepath: &str,
     additional_js: Option<String>,
     js_options: &EmacsJsOptions,
     as_typescript: bool,
+    true_filepath: Option<&str>,
 ) -> LispObject {
     EmacsMainJsRuntime::enter_toplevel_module();
-    let result = run_module_inner(filepath, additional_js, js_options, as_typescript)
-        .unwrap_or_else(move |e| {
-            destroy_worker_on_promise_rejection(&e);
-            handle_error(e, js_options.error_handler)
-        });
+    let result = run_module_inner(
+        filepath,
+        additional_js,
+        js_options,
+        as_typescript,
+        true_filepath,
+    )
+    .unwrap_or_else(move |e| {
+        destroy_worker_on_promise_rejection(&e);
+        handle_error(e, js_options.error_handler)
+    });
     EmacsMainJsRuntime::exit_toplevel_module();
     result
 }
